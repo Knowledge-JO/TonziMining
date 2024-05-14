@@ -1,0 +1,91 @@
+#include "./imports/stdlib.fc";
+#include "./op-codes.fc";
+#include "./tonzi-utils.fc";
+
+( int, slice, slice, cell) load_data() {
+    slice ds = get_data().begin_parse();
+
+    int tonzi_minter_balance = ds~load_coins();
+    slice owner_address = ds~load_msg_addr();  
+    slice tonzi_factory_address = ds~load_msg_addr();
+    cell tonzi_wallet_code = ds~load_ref();
+
+    return (
+        tonzi_minter_balance, 
+        owner_address, 
+        tonzi_factory_address,
+        tonzi_wallet_code
+    );
+}
+
+
+() save_data( 
+    int tonzi_minter_balance, 
+    slice owner_address, 
+    slice tonzi_factory_address, 
+    cell tonzi_wallet_code
+){
+    set_data(
+        pack_tonzi_wallet_data(
+            tonzi_minter_balance, 
+            owner_address, 
+            tonzi_factory_address, 
+            tonzi_wallet_code
+        )
+    );
+}
+
+
+
+() mint_tonzi_miner(in_msg_body) impure {
+    ;; calculate how much minter is gotten from deposited funds,
+    ;; this should also go to individual user contract?
+
+    ;; calculate tonzi wallet where funds will be going
+    ;; cell state_init = calculate_tonzi_wallet_state_init(sender_address, tonzi_factory_address, tonzi_wallet_code);
+    ;; slice tonzi_user_wallet_address = calculate_tonzi_wallet_address(state_init);
+    int deposit_amount = in_msg_body~load_coins();
+    (
+       int tonzi_minter_balance, 
+       slice owner_address, 
+       slice tonzi_factory_address,
+       cell tonzi_wallet_code
+    ) = load_data();
+
+   
+}
+
+
+
+() recv_internal(int balance, int msg_value, cell in_msg_full, slice in_msg_body) {
+    if(in_msg_body.slice_empty?()){
+        return();
+    }
+    
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    slice msg_sender = cs~load_msg_addr();
+
+    ( 
+        int tonzi_minter_balance, 
+        slice owner_address, 
+        slice tonzi_factory_address, 
+        cell tonzi_wallet_code 
+    ) = load_data();
+
+    int op = in_msg_body~load_uint(32);
+
+    if(op == op::ton_deposit()){
+        ;; on deposit, mint tonziMiner
+        throw_unless(107, equal_slices(msg_sender, tonzi_factory_address));
+        mint_tonzi_miner(in_msg_body);
+    }
+}
+
+
+
+int user_balance() method_id {
+   var [balance, _] = get_balance();
+
+    return balance;
+}
