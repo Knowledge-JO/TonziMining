@@ -22,46 +22,50 @@
 ;; 
 
 
-(slice, cell) load_data() inline {
+(int, slice, cell) load_data() inline {
     slice ds = get_data().begin_parse();
+    int total_value_locked = ds~load_coins();
     slice admin_addr = ds~load_msg_addr();
     cell tonzi_wallet_code = ds~load_ref();
 
-    return (admin_addr, tonzi_wallet_code);
+    return (total_value_locked, admin_addr, tonzi_wallet_code);
 }
 
-() save_data(slice admin_addr, cell tonzi_wallet_code) impure inline {
+() save_data(int total_value_locked, slice admin_addr, cell tonzi_wallet_code) impure inline {
     set_data(
         begin_cell()
+        .store_coins(total_value_locked)
         .store_slice(admin_addr)
         .store_ref(tonzi_wallet_code)
         .end_cell()
     );
 }
 
-() deposit(slice in_msg_body, slice msg_sender) impure {
-    int deposit_amount = in_msg_body~load_coins();
 
-    ;; send message to indidual user contract with the deposited funds
+() deposit(int deposit_amount, slice msg_sender) impure {
+   
+     ;; send message to indidual user contract with the deposited funds
     
     ;; calculate how much minter is gotten from deposited funds,
     ;; this should also go to individual user contract?
 
     ;; calculate tonzi wallet where funds will be going
 
-    (slice admin_addr, cell tonzi_wallet_code) = load_data();
+    (int total_value_locked, slice admin_addr, cell tonzi_wallet_code) = load_data();
 
     cell state_init = calculate_tonzi_wallet_state_init(msg_sender, my_address(), tonzi_wallet_code);
     slice tonzi_user_wallet_address = calculate_tonzi_wallet_address(state_init);
     int msg_mode = 1;
+    total_value_locked += deposit_amount;
 
     var msg_body = begin_cell()
         .store_uint(op::ton_deposit(), 32)
         .store_coins(deposit_amount)
+        .store_coins(total_value_locked)
         .end_cell();
 
     var msg = begin_cell()
-        .store_uint(0x10, 6)
+        .store_uint(0x18, 6)
         .store_slice(tonzi_user_wallet_address)
         .store_coins(deposit_amount)
         .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
@@ -69,6 +73,8 @@
         .store_ref(msg_body);
 
     send_raw_message(msg.end_cell(),msg_mode);
+
+    save_data(total_value_locked,admin_addr,tonzi_wallet_code);
 }
 
 
@@ -82,10 +88,11 @@
     slice msg_sender = cs~load_msg_addr();
 
     int op = in_msg_body~load_uint(32);
-
+    int deposit_amount = msg_value;
     if(op == 1){
         ;; deposit
-        deposit(in_msg_body, msg_sender);
+        
+        deposit(deposit_amount, msg_sender);
     }
 
     if(op ==  2){
@@ -99,6 +106,6 @@
 
 
 slice get_user_tonzi_wallet_address(slice user_address) method_id {
-    (slice admin_addr, cell tonzi_wallet_code) = load_data();
+    (int total_value_locked, slice admin_addr, cell tonzi_wallet_code) = load_data();
     return calculate_user_tonzi_wallet_address(user_address, my_address(), tonzi_wallet_code);
 }

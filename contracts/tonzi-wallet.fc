@@ -2,6 +2,9 @@
 #include "./op-codes.fc";
 #include "./tonzi-utils.fc";
 
+
+int min_tons_for_storage() asm "10000000 PUSHINT"; ;; 0.01 TON
+
 ( int, slice, slice, cell) load_data() {
     slice ds = get_data().begin_parse();
 
@@ -45,6 +48,8 @@
     ;; cell state_init = calculate_tonzi_wallet_state_init(sender_address, tonzi_factory_address, tonzi_wallet_code);
     ;; slice tonzi_user_wallet_address = calculate_tonzi_wallet_address(state_init);
     int deposit_amount = in_msg_body~load_coins();
+    int total_value_locked = in_msg_body~load_coins();
+
     (
        int tonzi_minter_balance, 
        slice owner_address, 
@@ -52,12 +57,13 @@
        cell tonzi_wallet_code
     ) = load_data();
 
+    calculate_tonzi_miner(deposit_amount, total_value_locked, 0);
    
 }
 
 
 
-() recv_internal(int balance, int msg_value, cell in_msg_full, slice in_msg_body) {
+() recv_internal(int msg_value, cell in_msg_full, slice in_msg_body) {
     if(in_msg_body.slice_empty?()){
         return();
     }
